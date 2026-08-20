@@ -90,7 +90,7 @@ async function buildDeposit(
   if (instr.path === "program" && instr.escrow_pda && instr.order_hash && instr.program_id) {
     // Escrow program path: initialize_escrow + deposit in one transaction.
     const anchor = await import("@coral-xyz/anchor");
-    const idl = (await import("./idl/zygo_escrow.json")).default;
+    const idl = (await import("./idl/zygo_escrow.json", { with: { type: "json" } })).default;
     const signAll =
       signer.signAllTransactions ??
       (async (txs: Transaction[]) => {
