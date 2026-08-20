@@ -1,0 +1,73 @@
+{
+  "name": "@zygopay/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Zygo — QR payments settled via non-custodial Solana escrow",
+  "license": "MIT",
+  "keywords": [
+    "zygo",
+    "upi",
+    "payments",
+    "solana",
+    "usdc",
+    "escrow",
+    "qr-payments",
+    "stablecoin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ans-mishra/zygo-sdk.git"
+  },
+  "homepage": "https://zygo.cash",
+  "bugs": "https://github.com/ans-mishra/zygo-sdk/issues",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./merchants": "./dist/merchants.js",
+    "./quotes": "./dist/quotes.js",
+    "./orders": "./dist/orders.js",
+    "./payments": "./dist/payments.js",
+    "./webhooks": "./dist/webhooks.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && mkdir -p dist/idl && cp src/idl/*.json dist/idl/",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "prepublishOnly": "npm run test"
+  },
+  "dependencies": {
+    "neverthrow": "^8.2.0"
+  },
+  "peerDependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "peerDependenciesMeta": {
+    "@coral-xyz/anchor": {
+      "optional": true
+    },
+    "@solana/spl-token": {
+      "optional": true
+    },
+    "@solana/web3.js": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.98.4",
+    "@types/node": "^22.20.1",
+    "tweetnacl": "^1.0.3",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
