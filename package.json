@@ -1,6 +1,6 @@
 {
   "name": "@zygopay/sdk",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "TypeScript SDK for Zygo — QR payments settled via non-custodial Solana escrow",
   "license": "MIT",
   "keywords": [
