@@ -15,10 +15,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ans-mishra/zygo-sdk.git"
+    "url": "git+https://github.com/ZygoCash/zygo-sdk.git"
   },
   "homepage": "https://zygo.cash",
-  "bugs": "https://github.com/ans-mishra/zygo-sdk/issues",
+  "bugs": "https://github.com/ZygoCash/zygo-sdk/issues",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
