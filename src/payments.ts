@@ -103,7 +103,10 @@ async function buildDeposit(
       { publicKey: owner, signTransaction: signer.signTransaction, signAllTransactions: signAll } as never,
       { commitment: "confirmed" }
     );
-    const program = new anchor.Program(idl as never, provider);
+    // The backend's deposit instructions carry the active program id (devnet
+    // and mainnet run different deployments); the IDL address is a fallback.
+    const activeIdl = instr.program_id ? { ...idl, address: instr.program_id } : idl;
+    const program = new anchor.Program(activeIdl as never, provider);
     const escrowPda = new web3.PublicKey(instr.escrow_pda);
     const orderHash = Buffer.from(instr.order_hash, "hex");
     const userAta = await spl.getAssociatedTokenAddress(mint, owner);

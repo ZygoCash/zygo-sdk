@@ -1,5 +1,5 @@
 {
-  "address": "4WKnxgH3G7DyqnFJLMU8LNj9ZWwPRixVBFQ44H3P5WJk",
+  "address": "6UzUiQWnX32C39StpnVXuMuFVcsVv5QkpBNd4wVsAzAj",
   "metadata": {
     "name": "zygo_escrow",
     "version": "0.1.0",
@@ -917,6 +917,14 @@
           "writable": true
         },
         {
+          "name": "fee_vault_ata",
+          "docs": [
+            "Platform fee recipient ATA — on release, validated to be the prime",
+            "admin's token account for this mint. Passed (unused) on refunds."
+          ],
+          "writable": true
+        },
+        {
           "name": "authority",
           "docs": [
             "Prime admin or operator."
@@ -935,7 +943,11 @@
       "docs": [
         "Platform authority releases the vault to the LP after fiat confirmation.",
         "Requires Processing: release implies the fiat leg happened, which",
-        "implies the escrow was locked when the LP was assigned."
+        "implies the escrow was locked when the LP was assigned.",
+        "Releases to the LP, carving the platform fee out on-chain to the",
+        "prime admin's token account. `fee_amount` is asserted by the platform",
+        "authority's signature (users never sign release, so they cannot",
+        "under-report the fee)."
       ],
       "discriminator": [
         253,
@@ -1089,6 +1101,14 @@
           "writable": true
         },
         {
+          "name": "fee_vault_ata",
+          "docs": [
+            "Platform fee recipient ATA — on release, validated to be the prime",
+            "admin's token account for this mint. Passed (unused) on refunds."
+          ],
+          "writable": true
+        },
+        {
           "name": "authority",
           "docs": [
             "Prime admin or operator."
@@ -1104,6 +1124,10 @@
         {
           "name": "lp_wallet",
           "type": "pubkey"
+        },
+        {
+          "name": "fee_amount",
+          "type": "u64"
         }
       ]
     },
@@ -1876,6 +1900,10 @@
           },
           {
             "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
             "type": "u64"
           }
         ]
