@@ -106,10 +106,13 @@ const quote = await zygo.quotes.create({
 const orderRes = await zygo.orders.create({ quoteId: quote.value.quote_id });
 const order = orderRes.value;
 step(!!order, "order created", order?.public_id);
-const spreadExpect = quote.value.lp_spread_base / 1e6;
+const q = quote.value;
+console.log(`  quote: ₹${q.fiat_amount_minor / 100} → principal ${q.stablecoin_amount_base / 1e6} + spread ${q.lp_spread_base / 1e6} + platform fee ${q.platform_fee_base / 1e6} + net fee est ${q.network_fee_estimate_base / 1e6} = ${q.total_base / 1e6} USDC`);
 
 // --- 4. SDK deposit ON-CHAIN ---
 const before = await usdcBalance();
+const PLATFORM_ATA_PRE = new PublicKey("9uPvb3GYL68J2CCSTcXae6shpngCBxew3rARuEUQGPSe");
+const platformBefore = Number((await getAccount(connection, PLATFORM_ATA_PRE)).amount) / 1e6;
 const instr = await zygo.payments.depositInstructions(order.order_id);
 const signer = {
   publicKey: kp.publicKey,
@@ -200,13 +203,19 @@ if (fiatOk) {
   const done = await waitOrder(token, order.order_id, "completed", 180_000).catch((e) => { step(false, "completed", e.message); return null; });
   if (done) { step(true, "order completed — LP paid on-chain"); lap("completed"); }
   const after = await usdcBalance();
-  // Same wallet plays user AND LP: deposit out, release back — net ≈ 0 by
-  // design (spread is off-chain fiat economics). The assertion is that the
-  // release actually landed: balance returns to the pre-deposit level.
-  console.log(`  USDC before deposit: ${before} → after completion: ${after}`);
+  // Platform fee vault = prime admin's devnet USDC ATA.
+  const PLATFORM_ATA = new PublicKey("9uPvb3GYL68J2CCSTcXae6shpngCBxew3rARuEUQGPSe");
+  const platformAfter = Number((await getAccount(connection, PLATFORM_ATA)).amount) / 1e6;
+  const feeGot = platformAfter - platformBefore;
+  console.log(`  ── settlement split ──`);
+  console.log(`  user paid:        ${q.total_base / 1e6} USDC`);
+  console.log(`  LP received:      ${(q.total_base - q.platform_fee_base) / 1e6} USDC (on-chain, to LP wallet)`);
+  console.log(`  platform fee ATA: ${platformBefore} → ${platformAfter} (+${feeGot.toFixed(6)})`);
+  console.log(`  expected fee:     ${q.platform_fee_base / 1e6} USDC`);
+  step(Math.abs(feeGot - q.platform_fee_base / 1e6) < 0.000001, "platform fee captured ON-CHAIN");
   step(
-    Math.abs(after - before) < 0.01,
-    "release landed on-chain (net-zero round trip, same wallet)",
+    Math.abs(after - (before - q.platform_fee_base / 1e6)) < 0.01,
+    "wallet delta = -fee (same wallet is user+LP)",
     `delta ${(after - before).toFixed(6)}`
   );
 }

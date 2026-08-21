@@ -18,6 +18,8 @@ export interface Asset {
   chain_name: string;
   chain_namespace: string;
   chain_reference: string;
+  /** Token mint/contract address for the asset's chain. */
+  contract_or_mint: string;
 }
 
 export interface Quote {
