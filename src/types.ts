@@ -2,12 +2,23 @@
 // RFC3339 strings; token amounts are integer base units.
 
 export interface ResolveResult {
+  destination_id: string;
   merchant_payment_destination_id: string;
+  merchant_id: string;
+  merchant_public_id: string;
   merchant_name: string;
-  payee_identifier: string;
+  claim_status: string;
   rail_code: string;
+  rail_category: string;
+  country: string;
+  currency: string;
+  identifier_type: string;
+  masked_identifier: string;
+  capabilities: string[];
+  merchant_newly_created: boolean;
   suggested_amount_minor?: number;
   merchant_category?: string;
+  payee_identifier?: string;
 }
 
 export interface Asset {
@@ -33,18 +44,22 @@ export interface Quote {
   platform_fee_base: number;
   network_fee_estimate_base: number;
   total_base: number;
-  reference_rate_scaled?: number;
+  reference_rate_scaled: number;
   expires_at: string;
 }
 
 export interface Order {
   order_id: string;
   public_id: string;
-  current_state: string;
+  quote_id: string;
+  user_id: string;
+  merchant_id: string;
   fiat_currency: string;
   fiat_amount_minor: number;
+  asset_id: string;
   stablecoin_amount_base: number;
-  refund_tx_hash?: string;
+  platform_fee_base: number;
+  current_state: string;
 }
 
 export interface TimelineEvent {
@@ -60,13 +75,11 @@ export interface DepositInstructions {
   chain: string;
   chain_name: string;
   mint: string;
-  vault_address: string;
+  /** Active escrow program id for this order's chain (devnet/mainnet). */
+  program_id: string;
+  /** Escrow PDA derived from the program and order hash. */
+  escrow_pda: string;
+  /** hex, 32 bytes — SHA-256 of the backend order public id. */
+  order_hash: string;
   amount_base: number;
-  memo: string;
-  /** "program" (escrow PDA) or "vault_transfer" (memo transfer fallback). */
-  path: string;
-  program_id?: string;
-  escrow_pda?: string;
-  /** hex, 32 bytes — present on the program path. */
-  order_hash?: string;
 }

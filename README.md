@@ -43,7 +43,7 @@ const order = await zygo.orders.create({ quoteId: quote.value.quote_id });
 
 // 4. Get on-chain deposit instructions for the payer's wallet
 const deposit = await zygo.payments.depositInstructions(order.value.order_id);
-// → deposit.value: { path: "program", program_id, escrow_pda, order_hash, mint, amount_base }
+// → deposit.value: { escrow_id, program_id, escrow_pda, order_hash, mint, amount_base }
 
 // 5. Wait for settlement (or use a webhook instead)
 const done = await zygo.orders.waitFor(order.value.order_id, "completed");
@@ -72,9 +72,8 @@ const sig = await zygo.payments.deposit.execute(prepared.value, signer);
 // sig.value = confirmed transaction signature
 ```
 
-Both paths are handled: the escrow-program deposit (`initialize_escrow` +
-`deposit` in one transaction) and the vault-transfer fallback (ATA +
-transferChecked + memo).
+The deposit is the escrow program path only: `initialize_escrow` +
+`deposit` in one transaction.
 
 All methods return `ResultAsync<T, ZygoError>` (neverthrow) — no thrown
 exceptions from API failures. Retries on 429/5xx with backoff are built in

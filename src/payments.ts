@@ -39,9 +39,8 @@ export function createPayments(cfg: HttpConfig) {
 
     deposit: {
       /**
-       * Builds the unsigned deposit transaction for the signer's wallet —
-       * inspect or simulate it before signing. Program path (escrow PDA)
-       * or vault-transfer fallback, chosen from the instructions.
+       * Builds the unsigned escrow-program deposit transaction for the
+       * signer's wallet — inspect or simulate it before signing.
        */
       prepare(
         instr: DepositInstructions,
@@ -73,8 +72,6 @@ export function createPayments(cfg: HttpConfig) {
   };
 }
 
-const MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
-
 async function buildDeposit(
   instr: DepositInstructions,
   connection: Connection,
@@ -82,62 +79,43 @@ async function buildDeposit(
 ): Promise<PreparedDeposit> {
   const web3 = await import("@solana/web3.js");
   const spl = await import("@solana/spl-token");
+  const anchor = await import("@coral-xyz/anchor");
 
   const owner = signer.publicKey;
   const mint = new web3.PublicKey(instr.mint);
+  const idl = (await import("./idl/zygo_escrow.json", { with: { type: "json" } })).default;
+  const signAll =
+    signer.signAllTransactions ??
+    (async (txs: Transaction[]) => {
+      const out: Transaction[] = [];
+      for (const t of txs) out.push(await signer.signTransaction(t));
+      return out;
+    });
+  const provider = new anchor.AnchorProvider(
+    connection,
+    { publicKey: owner, signTransaction: signer.signTransaction, signAllTransactions: signAll } as never,
+    { commitment: "confirmed" }
+  );
+  // The backend's deposit instructions carry the active program id (devnet
+  // and mainnet may differ); the bundled IDL is only a fallback shape.
+  const activeIdl = { ...idl, address: instr.program_id };
+  const program = new anchor.Program(activeIdl as never, provider);
+  const escrowPda = new web3.PublicKey(instr.escrow_pda);
+  const orderHash = Buffer.from(instr.order_hash, "hex");
+  const userAta = await spl.getAssociatedTokenAddress(mint, owner);
+  const vault = await spl.getAssociatedTokenAddress(mint, escrowPda, true);
+
   const tx = new web3.Transaction();
-
-  if (instr.path === "program" && instr.escrow_pda && instr.order_hash && instr.program_id) {
-    // Escrow program path: initialize_escrow + deposit in one transaction.
-    const anchor = await import("@coral-xyz/anchor");
-    const idl = (await import("./idl/zygo_escrow.json", { with: { type: "json" } })).default;
-    const signAll =
-      signer.signAllTransactions ??
-      (async (txs: Transaction[]) => {
-        const out: Transaction[] = [];
-        for (const t of txs) out.push(await signer.signTransaction(t));
-        return out;
-      });
-    const provider = new anchor.AnchorProvider(
-      connection,
-      { publicKey: owner, signTransaction: signer.signTransaction, signAllTransactions: signAll } as never,
-      { commitment: "confirmed" }
-    );
-    // The backend's deposit instructions carry the active program id (devnet
-    // and mainnet run different deployments); the IDL address is a fallback.
-    const activeIdl = instr.program_id ? { ...idl, address: instr.program_id } : idl;
-    const program = new anchor.Program(activeIdl as never, provider);
-    const escrowPda = new web3.PublicKey(instr.escrow_pda);
-    const orderHash = Buffer.from(instr.order_hash, "hex");
-    const userAta = await spl.getAssociatedTokenAddress(mint, owner);
-    const vault = await spl.getAssociatedTokenAddress(mint, escrowPda, true);
-
-    tx.add(
-      await program.methods
-        .initializeEscrow(Array.from(orderHash), new anchor.BN(instr.amount_base))
-        .accounts({ escrow: escrowPda, vault, mint, user: owner })
-        .instruction(),
-      await program.methods
-        .deposit()
-        .accounts({ escrow: escrowPda, vault, userAta, user: owner })
-        .instruction()
-    );
-  } else {
-    // Vault-transfer fallback: ATA (create if missing) + transferChecked + memo.
-    const vault = new web3.PublicKey(instr.vault_address);
-    const userAta = await spl.getAssociatedTokenAddress(mint, owner);
-    if (!(await connection.getAccountInfo(userAta))) {
-      tx.add(spl.createAssociatedTokenAccountInstruction(owner, userAta, owner, mint));
-    }
-    tx.add(
-      spl.createTransferCheckedInstruction(userAta, mint, vault, owner, instr.amount_base, 6),
-      new web3.TransactionInstruction({
-        keys: [{ pubkey: owner, isSigner: true, isWritable: false }],
-        programId: new web3.PublicKey(MEMO_PROGRAM),
-        data: Buffer.from(instr.memo, "utf8"),
-      })
-    );
-  }
+  tx.add(
+    await program.methods
+      .initializeEscrow(Array.from(orderHash), new anchor.BN(instr.amount_base))
+      .accounts({ escrow: escrowPda, vault, mint, user: owner })
+      .instruction(),
+    await program.methods
+      .deposit()
+      .accounts({ escrow: escrowPda, vault, userAta, user: owner })
+      .instruction()
+  );
 
   tx.feePayer = owner;
   tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash;
