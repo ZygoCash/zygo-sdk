@@ -62,6 +62,30 @@ export interface Order {
   current_state: string;
 }
 
+export interface OrderSummary {
+  order_id: string;
+  public_id: string;
+  merchant_name: string;
+  fiat_currency: string;
+  fiat_amount_minor: number;
+  stablecoin_amount_base: number;
+  current_state: string;
+  created_at: string;
+  chat_unread_count: number;
+}
+
+export interface CancellationResult {
+  status: string;
+}
+
+export interface ListOrdersOptions {
+  status?: "active" | "history";
+  sort?: "latest" | "oldest" | "amount_asc" | "amount_desc";
+  limit?: number;
+  offset?: number;
+  wallet?: string;
+}
+
 export interface TimelineEvent {
   from_state: string | null;
   to_state: string;

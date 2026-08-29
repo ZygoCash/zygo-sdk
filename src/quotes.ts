@@ -10,6 +10,10 @@ export function createQuotes(cfg: HttpConfig) {
       return request(cfg, "GET", "/v1/config/assets");
     },
 
+    get(quoteId: string): ResultAsync<Quote, ZygoError> {
+      return request(cfg, "GET", `/v1/quotes/${quoteId}`);
+    },
+
     /** Requires the quotes:write scope. */
     create(params: {
       merchantPaymentDestinationId: string;

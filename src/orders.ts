@@ -1,7 +1,13 @@
 import { ResultAsync } from "neverthrow";
 import { ZygoError } from "./index.js";
 import { HttpConfig, request } from "./http.js";
-import { Order, TimelineEvent } from "./types.js";
+import {
+  CancellationResult,
+  ListOrdersOptions,
+  Order,
+  OrderSummary,
+  TimelineEvent,
+} from "./types.js";
 
 const TERMINAL = new Set(["completed", "refunded", "failed", "expired"]);
 
@@ -20,6 +26,21 @@ export function createOrders(cfg: HttpConfig) {
 
     get(orderId: string): ResultAsync<Order, ZygoError> {
       return request(cfg, "GET", `/v1/orders/${orderId}`);
+    },
+
+    list(opts: ListOrdersOptions = {}): ResultAsync<OrderSummary[], ZygoError> {
+      const query = new URLSearchParams();
+      if (opts.status) query.set("status", opts.status);
+      if (opts.sort) query.set("sort", opts.sort);
+      if (opts.limit !== undefined) query.set("limit", String(opts.limit));
+      if (opts.offset !== undefined) query.set("offset", String(opts.offset));
+      if (opts.wallet) query.set("wallet", opts.wallet);
+      const qs = query.toString();
+      return request(cfg, "GET", `/v1/orders${qs ? "?" + qs : ""}`);
+    },
+
+    cancel(orderId: string): ResultAsync<CancellationResult, ZygoError> {
+      return request(cfg, "POST", `/v1/orders/${orderId}/cancel`, {});
     },
 
     timeline(orderId: string): ResultAsync<TimelineEvent[], ZygoError> {

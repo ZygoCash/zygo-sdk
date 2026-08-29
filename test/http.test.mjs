@@ -74,6 +74,45 @@ test("gives up after max attempts on persistent 500", async () => {
   assert.equal(calls.length, 5); // 1 from sanity call + 4 attempts
 });
 
+test("quotes.get hits the quote path", async () => {
+  queue.push({ status: 200, body: { quote_id: "q1" } });
+  await zygo().quotes.get("q1");
+  assert.ok(calls[0].url.endsWith("/v1/quotes/q1"));
+});
+
+test("resolveQr passes optional country_code", async () => {
+  queue.push({ status: 200, body: { destination_id: "d1" } });
+  await zygo().merchants.resolveQr("test", { countryCode: "IN" });
+  const body = JSON.parse(calls[0].opts.body);
+  assert.equal(body.country_code, "IN");
+  assert.equal(body.input_method, "manual");
+});
+
+test("orders.list builds query params", async () => {
+  queue.push({ status: 200, body: [] });
+  await zygo().orders.list({
+    status: "active",
+    sort: "latest",
+    limit: 10,
+    offset: 5,
+    wallet: "addr",
+  });
+  const url = new URL(calls[0].url);
+  assert.equal(url.searchParams.get("status"), "active");
+  assert.equal(url.searchParams.get("sort"), "latest");
+  assert.equal(url.searchParams.get("limit"), "10");
+  assert.equal(url.searchParams.get("offset"), "5");
+  assert.equal(url.searchParams.get("wallet"), "addr");
+});
+
+test("orders.cancel posts to the cancel endpoint", async () => {
+  queue.push({ status: 200, body: { status: "refund_pending" } });
+  await zygo().orders.cancel("o1");
+  assert.equal(calls[0].opts.method, "POST");
+  assert.ok(calls[0].url.endsWith("/v1/orders/o1/cancel"));
+  assert.ok(calls[0].opts.headers["Idempotency-Key"]);
+});
+
 test("createZygo rejects malformed keys", () => {
   assert.throws(() => createZygo({ apiKey: "no-colon" }), /client_id:secret/);
 });
