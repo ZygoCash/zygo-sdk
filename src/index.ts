@@ -1,12 +1,13 @@
 import { ResultAsync } from "neverthrow";
 import { HttpConfig } from "./http.js";
+import { createConfig } from "./config.js";
 import { createMerchants } from "./merchants.js";
 import { createQuotes } from "./quotes.js";
 import { createOrders } from "./orders.js";
 import { createPayments } from "./payments.js";
 import * as webhooks from "./webhooks.js";
 
-export const VERSION = "0.1.5";
+export const VERSION = "0.2.0";
 
 export class ZygoError extends Error {
   constructor(
@@ -32,6 +33,7 @@ export interface ZygoConfig {
 }
 
 export interface Zygo {
+  config: ReturnType<typeof createConfig>;
   merchants: ReturnType<typeof createMerchants>;
   quotes: ReturnType<typeof createQuotes>;
   orders: ReturnType<typeof createOrders>;
@@ -63,6 +65,7 @@ export function createZygo(config: ZygoConfig): Zygo {
     timeoutMs: config.timeoutMs ?? 15_000,
   };
   return {
+    config: createConfig(http),
     merchants: createMerchants(http),
     quotes: createQuotes(http),
     orders: createOrders(http),

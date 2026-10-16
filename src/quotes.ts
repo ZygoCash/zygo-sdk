@@ -14,7 +14,12 @@ export function createQuotes(cfg: HttpConfig) {
       return request(cfg, "GET", `/v1/quotes/${quoteId}`);
     },
 
-    /** Requires the quotes:write scope. */
+    /**
+     * Requires the quotes:write scope. `fiatAmountMinor` is in the
+     * destination currency's minor units (see config.paymentRails()).
+     * Errors: ASSET_NOT_SUPPORTED (422, asset not on this network),
+     * RATE_UNAVAILABLE (503, retried), PRICING_INVALID (503, not retried).
+     */
     create(params: {
       merchantPaymentDestinationId: string;
       assetId: string;

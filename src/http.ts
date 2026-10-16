@@ -9,6 +9,9 @@ export interface HttpConfig {
 
 const MAX_ATTEMPTS = 4;
 
+// 5xx codes that retrying cannot fix (operator configuration problems).
+const NON_RETRYABLE_CODES = new Set(["PRICING_INVALID"]);
+
 function backoffMs(attempt: number, retryAfter?: number): number {
   if (retryAfter && retryAfter > 0) return retryAfter * 1000;
   return Math.min(400 * 2 ** attempt, 8000) * (0.75 + Math.random() * 0.5);
@@ -23,9 +26,12 @@ export function request<T>(
 ): ResultAsync<T, ZygoError> {
   return ResultAsync.fromPromise(
     (async (): Promise<T> => {
+      // One key for every retry of this call, so the backend dedupes a
+      // mutation whose first attempt landed but whose response was lost.
+      const idempotencyKey = method !== "GET" ? crypto.randomUUID() : undefined;
       let lastErr: ZygoError | undefined;
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        const res = await attemptOnce<T>(cfg, method, path, body);
+        const res = await attemptOnce<T>(cfg, method, path, body, idempotencyKey);
         if (res.ok) return res.value as T;
         lastErr = res.error;
         if (!lastErr!.retryable) break;
@@ -48,7 +54,8 @@ async function attemptOnce<T>(
   cfg: HttpConfig,
   method: string,
   path: string,
-  body?: unknown
+  body: unknown,
+  idempotencyKey: string | undefined
 ): Promise<Attempt<T>> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), cfg.timeoutMs);
@@ -59,20 +66,23 @@ async function attemptOnce<T>(
       headers: {
         "Content-Type": "application/json",
         "X-Api-Key": cfg.apiKey,
-        ...(method !== "GET" ? { "Idempotency-Key": crypto.randomUUID() } : {}),
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (res.ok) return { ok: true, value: data as T };
-    const retryable = res.status === 429 || res.status >= 500;
+    // Backend error envelope: { error: CODE, message }.
+    const code = (data.error as string) ?? (data.code as string) ?? "HTTP_" + res.status;
+    const retryable =
+      (res.status === 429 || res.status >= 500) && !NON_RETRYABLE_CODES.has(code);
     const retryAfter = Number(res.headers.get("Retry-After") ?? 0) || undefined;
     return {
       ok: false,
       retryAfter,
       error: new ZygoError(
         (data.message as string) ?? `request failed (${res.status})`,
-        (data.code as string) ?? "HTTP_" + res.status,
+        code,
         res.status,
         retryable
       ),

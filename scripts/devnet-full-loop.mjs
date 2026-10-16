@@ -107,7 +107,7 @@ const orderRes = await zygo.orders.create({ quoteId: quote.value.quote_id });
 const order = orderRes.value;
 step(!!order, "order created", order?.public_id);
 const q = quote.value;
-console.log(`  quote: ₹${q.fiat_amount_minor / 100} → principal ${q.stablecoin_amount_base / 1e6} + spread ${q.lp_spread_base / 1e6} + platform fee ${q.platform_fee_base / 1e6} + net fee est ${q.network_fee_estimate_base / 1e6} = ${q.total_base / 1e6} USDC`);
+console.log(`  quote: ₹${q.fiat_amount_minor / 100} → ${q.total_base / 1e6} USDC all-in (1 USDC = ₹${q.rate_scaled / 1e6})`);
 
 // --- 4. SDK deposit ON-CHAIN ---
 const before = await usdcBalance();
@@ -209,12 +209,12 @@ if (fiatOk) {
   const feeGot = platformAfter - platformBefore;
   console.log(`  ── settlement split ──`);
   console.log(`  user paid:        ${q.total_base / 1e6} USDC`);
-  console.log(`  LP received:      ${(q.total_base - q.platform_fee_base) / 1e6} USDC (on-chain, to LP wallet)`);
+  console.log(`  LP received:      ${(q.total_base - order.platform_fee_base) / 1e6} USDC (on-chain, to LP wallet)`);
   console.log(`  platform fee ATA: ${platformBefore} → ${platformAfter} (+${feeGot.toFixed(6)})`);
-  console.log(`  expected fee:     ${q.platform_fee_base / 1e6} USDC`);
-  step(Math.abs(feeGot - q.platform_fee_base / 1e6) < 0.000001, "platform fee captured ON-CHAIN");
+  console.log(`  expected fee:     ${order.platform_fee_base / 1e6} USDC`);
+  step(Math.abs(feeGot - order.platform_fee_base / 1e6) < 0.000001, "platform fee captured ON-CHAIN");
   step(
-    Math.abs(after - (before - q.platform_fee_base / 1e6)) < 0.01,
+    Math.abs(after - (before - order.platform_fee_base / 1e6)) < 0.01,
     "wallet delta = -fee (same wallet is user+LP)",
     `delta ${(after - before).toFixed(6)}`
   );

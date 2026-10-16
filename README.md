@@ -37,6 +37,8 @@ const quote = await zygo.quotes.create({
   fiatAmountMinor: 500_00, // ₹500.00
 });
 if (quote.isErr()) throw quote.error;
+// quote.value.total_base — everything the payer deposits (token base units)
+// quote.value.rate_scaled — all-in rate: 1 USDC = rate_scaled / 1e6 fiat
 
 // 3. Create the order (idempotent)
 const order = await zygo.orders.create({ quoteId: quote.value.quote_id });
@@ -47,6 +49,19 @@ const deposit = await zygo.payments.depositInstructions(order.value.order_id);
 
 // 5. Wait for settlement (or use a webhook instead)
 const done = await zygo.orders.waitFor(order.value.order_id, "completed");
+```
+
+## Currencies and rates
+
+`fiatAmountMinor` is in the destination currency's minor units (paise for
+INR). Corridors and their `minor_units` come from config:
+
+```ts
+const rails = await zygo.config.paymentRails();
+// [{ corridor_id, code: "upi", country: "IN", currency: "INR", minor_units: 2, ... }]
+
+// Indicative live rate for estimates (the quote's rate is authoritative):
+const rate = await zygo.config.currentRate(); // rate.value.rate = ₹ per USDC, all-in
 ```
 
 ## Deposits (prepare / execute)
@@ -77,8 +92,8 @@ The deposit is the escrow program path only: `initialize_escrow` +
 
 All methods return `ResultAsync<T, ZygoError>` (neverthrow) — no thrown
 exceptions from API failures. Retries on 429/5xx with backoff are built in
-(`Retry-After` honored); mutating calls carry idempotency keys
-automatically.
+(`Retry-After` honored); mutating calls carry an idempotency key that
+stays the same across retries of that call.
 
 ## Webhooks
 
@@ -92,8 +107,18 @@ const event = webhooks.verify(rawBody, req.headers["x-zygo-signature"], whsec);
 
 ## Errors
 
-`ZygoError { code, httpStatus, retryable }` — e.g. `INSUFFICIENT_SCOPE`
-(403, not retryable), `RATE_LIMITED` (429, retried automatically).
+`ZygoError { code, httpStatus, retryable }`, where `code` is the backend's
+error code. Common ones:
+
+| code | status | retried | meaning |
+|---|---|---|---|
+| `INSUFFICIENT_SCOPE` | 403 | no | key lacks `quotes:write` / `orders:write` |
+| `INVITE_REQUIRED` | 403 | no | the key owner's account has no redeemed invite code |
+| `ASSET_NOT_SUPPORTED` | 422 | no | asset isn't served on this network (e.g. a devnet mint on live) |
+| `QUOTE_UNUSABLE` | 410 | no | quote expired or already used — create a new one |
+| `RATE_LIMITED` | 429 | yes | `Retry-After` honored |
+| `RATE_UNAVAILABLE` | 503 | yes | no live FX source right now |
+| `PRICING_INVALID` | 503 | no | operator pricing misconfiguration |
 
 ## Environments
 

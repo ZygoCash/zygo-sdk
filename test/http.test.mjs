@@ -41,7 +41,7 @@ test("mutations carry an Idempotency-Key", async () => {
 });
 
 test("retries on 429 and honors Retry-After", async () => {
-  queue.push({ status: 429, body: { message: "slow down", code: "RATE_LIMITED" }, headers: { "Retry-After": "0" } });
+  queue.push({ status: 429, body: { error: "RATE_LIMITED", message: "slow down" }, headers: { "Retry-After": "0" } });
   queue.push({ status: 200, body: { order_id: "o1" } });
   const res = await zygo().orders.get("o1");
   assert.ok(res.isOk());
@@ -49,11 +49,45 @@ test("retries on 429 and honors Retry-After", async () => {
 });
 
 test("does not retry 4xx errors", async () => {
-  queue.push({ status: 403, body: { message: "nope", code: "INSUFFICIENT_SCOPE" } });
+  queue.push({ status: 403, body: { error: "INSUFFICIENT_SCOPE", message: "nope" } });
   const res = await zygo().orders.get("o1");
   assert.ok(res.isErr());
   assert.equal(res.error.code, "INSUFFICIENT_SCOPE");
   assert.equal(res.error.httpStatus, 403);
+  assert.equal(res.error.retryable, false);
+  assert.equal(calls.length, 1);
+});
+
+test("reads the legacy code field when error is absent", async () => {
+  queue.push({ status: 404, body: { code: "NOT_FOUND", message: "gone" } });
+  const res = await zygo().orders.get("o1");
+  assert.equal(res.error.code, "NOT_FOUND");
+});
+
+test("retries of one mutation reuse its Idempotency-Key", async () => {
+  queue.push({ status: 503, body: { error: "RATE_UNAVAILABLE" }, headers: { "Retry-After": "0" } });
+  queue.push({ status: 201, body: { quote_id: "q1" } });
+  const res = await zygo().quotes.create({
+    merchantPaymentDestinationId: "m1",
+    assetId: "a1",
+    fiatAmountMinor: 50000,
+  });
+  assert.ok(res.isOk());
+  assert.equal(calls.length, 2);
+  const k1 = calls[0].opts.headers["Idempotency-Key"];
+  assert.ok(k1);
+  assert.equal(calls[1].opts.headers["Idempotency-Key"], k1);
+});
+
+test("PRICING_INVALID is not retried", async () => {
+  queue.push({ status: 503, body: { error: "PRICING_INVALID", message: "bad config" } });
+  const res = await zygo().quotes.create({
+    merchantPaymentDestinationId: "m1",
+    assetId: "a1",
+    fiatAmountMinor: 50000,
+  });
+  assert.ok(res.isErr());
+  assert.equal(res.error.code, "PRICING_INVALID");
   assert.equal(res.error.retryable, false);
   assert.equal(calls.length, 1);
 });
@@ -111,6 +145,17 @@ test("orders.cancel posts to the cancel endpoint", async () => {
   assert.equal(calls[0].opts.method, "POST");
   assert.ok(calls[0].url.endsWith("/v1/orders/o1/cancel"));
   assert.ok(calls[0].opts.headers["Idempotency-Key"]);
+});
+
+test("config endpoints hit their paths", async () => {
+  queue.push({ status: 200, body: [] }, { status: 200, body: {} }, { status: 200, body: {} });
+  const z = zygo();
+  await z.config.paymentRails();
+  await z.config.currentRate();
+  await z.config.capabilities();
+  assert.ok(calls[0].url.endsWith("/v1/config/payment-rails"));
+  assert.ok(calls[1].url.endsWith("/v1/rates/current"));
+  assert.ok(calls[2].url.endsWith("/v1/capabilities"));
 });
 
 test("createZygo rejects malformed keys", () => {
