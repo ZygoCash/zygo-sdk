@@ -117,6 +117,48 @@ import { webhooks } from "@zygopay/sdk/webhooks";
 const event = webhooks.verify(rawBody, req.headers["x-zygo-signature"], whsec);
 ```
 
+## Using Zygo from a mobile app
+
+The SDK runs on your backend, never inside the app. It needs your secret
+API key, and anything shipped in an app can be extracted from it. It also
+needs Node.js: `createZygo()` refuses to start where a `window` global
+exists.
+
+```
+Mobile app ──(your own login)──▶ Your backend ──(@zygopay/sdk + API key)──▶ api.zygo.cash
+```
+
+1. The app sends the scanned QR text and the amount to your backend.
+2. Your backend runs `merchants.resolveQr` → `quotes.create` →
+   `orders.create` → `payments.depositInstructions`.
+3. The key owner's wallet signs the deposit (`deposit.prepare` +
+   `deposit.execute`).
+4. Your backend receives order events by webhook (or uses
+   `orders.waitFor`) and pushes the status to the app.
+
+Requests made with an API key act as the key owner's account, so every
+order is paid from **the key owner's primary Solana wallet** — the escrow
+is bound to it on-chain. This fits when your business pays merchants on
+behalf of your users. Having each end user pay from their own wallet isn't
+supported through API keys today.
+
+If your backend holds that wallet as a keypair, wrap it as a signer. Keep
+the secret key in a secrets manager and fund the wallet only with what you
+need:
+
+```ts
+import { Keypair, Transaction } from "@solana/web3.js";
+
+const kp = Keypair.fromSecretKey(loadSecretKeyFromYourVault());
+const signer = {
+  publicKey: kp.publicKey,
+  signTransaction: async (tx: Transaction) => {
+    tx.partialSign(kp);
+    return tx;
+  },
+};
+```
+
 ## Errors
 
 `ZygoError { code, httpStatus, retryable }`, where `code` is the backend's
