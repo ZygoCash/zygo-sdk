@@ -4,6 +4,8 @@ TypeScript SDK for Zygo — UPI QR payments settled through a non-custodial
 Solana escrow. Server-side only: secret API keys must never ship to a
 browser or mobile app.
 
+Questions? Ask in [GitHub Discussions](https://github.com/ZygoCash/zygo-sdk/discussions/categories/q-a).
+
 ## Get an API key
 
 In the Zygo app: Profile → Developer mode → Create API key. The full
@@ -137,3 +139,12 @@ error code. Common ones:
 
 `createZygo({ environment: "sandbox" })` targets the devnet-backed sandbox
 when available; `"live"` (default) is api.zygo.cash.
+
+## Help and feedback
+
+- **Questions and integration help:** [Discussions → Q&A](https://github.com/ZygoCash/zygo-sdk/discussions/categories/q-a)
+- **Ideas and feature requests:** [Discussions → Ideas](https://github.com/ZygoCash/zygo-sdk/discussions/categories/ideas)
+- **Bugs:** [open an issue](https://github.com/ZygoCash/zygo-sdk/issues) with the SDK version, the `ZygoError` code and the steps to reproduce
+
+Never paste your API secret, webhook secret or wallet keys into a
+discussion or issue.
