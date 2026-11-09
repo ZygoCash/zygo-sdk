@@ -7,7 +7,7 @@ import { createOrders } from "./orders.js";
 import { createPayments } from "./payments.js";
 import * as webhooks from "./webhooks.js";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 export class ZygoError extends Error {
   constructor(
