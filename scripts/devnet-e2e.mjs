@@ -83,7 +83,7 @@ if (merchant.isOk() && usdc) {
 // THE on-chain deposit through the SDK
 if (order) {
   const instr = await zygo.payments.depositInstructions(order.order_id);
-  step(instr.isOk(), "depositInstructions", instr.isOk() ? instr.value.path : instr.error.message);
+  step(instr.isOk(), "depositInstructions", instr.isOk() ? instr.value.program_id : instr.error.message);
   if (instr.isOk()) {
     const connection = new Connection(RPC, "confirmed");
     const signer = {

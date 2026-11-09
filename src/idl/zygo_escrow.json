@@ -1,5 +1,5 @@
 {
-  "address": "6UzUiQWnX32C39StpnVXuMuFVcsVv5QkpBNd4wVsAzAj",
+  "address": "8mTojgUC3bLUoZm7MhxGsZm34Wr1a1tpRtGDwg6euaUW",
   "metadata": {
     "name": "zygo_escrow",
     "version": "0.1.0",
@@ -56,8 +56,9 @@
     {
       "name": "add_operator",
       "docs": [
-        "Prime adds a settlement operator (address only — keys stay with the",
-        "operator; they sign their own settlement transactions)."
+        "Prime adds an operator with role bits (address only — keys stay with",
+        "the operator; they sign their own settlement transactions). Rotate by",
+        "remove_operator + add_operator with a fresh wallet."
       ],
       "discriminator": [
         149,
@@ -98,8 +99,461 @@
         {
           "name": "wallet",
           "type": "pubkey"
+        },
+        {
+          "name": "roles",
+          "type": "u8"
         }
       ]
+    },
+    {
+      "name": "approve_lp",
+      "docs": [
+        "Prime approves an LP wallet for settlement: lock_escrow and release",
+        "(by hot roles) only commit to, pay, or credit approved wallets. This",
+        "is the one onboarding step a server key can't perform, so a full",
+        "server compromise can't settle escrows to an attacker's wallet."
+      ],
+      "discriminator": [
+        175,
+        244,
+        18,
+        210,
+        31,
+        214,
+        105,
+        63
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "approval",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lp_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_wallet"
+        },
+        {
+          "name": "prime",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_escrow",
+      "docs": [
+        "User abandons an unfunded escrow: closes the vault ATA and the",
+        "account, rent back to the user who paid it. Standard exit property:",
+        "nothing a user paid for can stay locked. Stray donations are swept",
+        "to the user first so dust can never block the close."
+      ],
+      "discriminator": [
+        156,
+        203,
+        54,
+        179,
+        38,
+        72,
+        33,
+        21
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  115,
+                  99,
+                  114,
+                  111,
+                  119
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.order_hash",
+                "account": "Escrow"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "escrow"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "escrow.mint",
+                "account": "Escrow"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "destination_ata",
+          "docs": [
+            "Stray dust destination; must belong to the user."
+          ],
+          "writable": true
+        },
+        {
+          "name": "user",
+          "docs": [
+            "Receives rent from both closed accounts; always the user who paid."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_withdraw",
+      "docs": [
+        "The claim's own wallet withdraws credit that has been matured for",
+        "LP_SELF_EXIT_DELAY_SECS past the cooldown, without the payout role.",
+        "The LP's exit when the platform stops relaying payouts: no role, no",
+        "intent (the signature is the LP's), and it works while paused, like",
+        "the user's timeout_refund. Destination is still the claim wallet and",
+        "the per-mint caps still bound each withdrawal."
+      ],
+      "discriminator": [
+        232,
+        89,
+        154,
+        117,
+        16,
+        204,
+        182,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "pool_authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "docs": [
+            "The signer's own claim: seeds bind it to the signing wallet."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination_ata",
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "wallet",
+          "docs": [
+            "The LP itself (claim.wallet)."
+          ],
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
     },
     {
       "name": "close_escrow",
@@ -261,7 +715,7 @@
         {
           "name": "authority",
           "docs": [
-            "Prime admin or operator."
+            "Keeper role or prime (role checked in the handler)."
           ],
           "signer": true
         },
@@ -421,7 +875,9 @@
     {
       "name": "initialize_config",
       "docs": [
-        "One-shot: creates the platform config; the caller becomes prime admin."
+        "One-shot: creates the platform config; the caller becomes prime admin.",
+        "Only the program's upgrade authority may call it, so nobody can race",
+        "a fresh deployment to claim prime."
       ],
       "discriminator": [
         208,
@@ -456,7 +912,8 @@
         {
           "name": "prime",
           "docs": [
-            "Becomes the prime admin. One-shot — the config PDA `init` fails on re-run."
+            "Becomes the prime admin. One-shot — the config PDA `init` fails on re-run.",
+            "Must be the program's upgrade authority (a fresh deploy can't be raced)."
           ],
           "writable": true,
           "signer": true
@@ -464,6 +921,13 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "program",
+          "address": "8mTojgUC3bLUoZm7MhxGsZm34Wr1a1tpRtGDwg6euaUW"
+        },
+        {
+          "name": "program_data"
         }
       ],
       "args": []
@@ -471,9 +935,11 @@
     {
       "name": "initialize_escrow",
       "docs": [
-        "Creates the escrow for an order. `order_id` is the backend's order",
-        "public id (e.g. \"ord_00000012\") hashed to 32 bytes, making the PDA",
-        "deterministic and 1:1 with backend state."
+        "Creates the escrow for an order. `order_ref` is the backend's order",
+        "reference (sha256 of the public id, e.g. \"ord_00000012\"); the PDA seed",
+        "`order_hash` must equal escrow_order_hash(user, order_ref), so an",
+        "escrow address belongs to exactly one depositor and nobody else can",
+        "create (squat) it ahead of them."
       ],
       "discriminator": [
         243,
@@ -486,6 +952,27 @@
         209
       ],
       "accounts": [
+        {
+          "name": "config",
+          "docs": [
+            "Platform config (read-only); the pause gate on new escrows."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
         {
           "name": "escrow",
           "writable": true,
@@ -511,6 +998,10 @@
         },
         {
           "name": "vault",
+          "docs": [
+            "init_if_needed: an ATA for a known escrow PDA can be created by",
+            "anyone; with plain init a pre-created vault would block the order."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -622,6 +1113,36 @@
         {
           "name": "rent",
           "address": "SysvarRent111111111111111111111111111111111"
+        },
+        {
+          "name": "pool_state",
+          "docs": [
+            "Mint allowlist: escrows exist only for mints prime configured with",
+            "set_pool_caps ([\"pool_state\", mint])."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
         }
       ],
       "args": [
@@ -637,6 +1158,19 @@
         {
           "name": "amount",
           "type": "u64"
+        },
+        {
+          "name": "reward_points",
+          "type": "u64"
+        },
+        {
+          "name": "order_ref",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
@@ -704,9 +1238,512 @@
         {
           "name": "authority",
           "docs": [
-            "Prime admin or operator."
+            "Settler role or prime (role checked in the handler)."
           ],
           "signer": true
+        },
+        {
+          "name": "lp_approval",
+          "docs": [
+            "Prime's approval of the committed LP ([\"lp\", counterparty])."
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "counterparty",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "migrate_claim",
+      "docs": [
+        "Permissionless v1 -> v2 claim migration: the old flat credit becomes",
+        "a single fully-matured entry (timestamp 0, so nothing is stranded by",
+        "cooldown), the payout nonce survives. Old-layout accounts cannot be",
+        "read by this binary, so they pass through here before anything else."
+      ],
+      "discriminator": [
+        43,
+        81,
+        100,
+        252,
+        168,
+        6,
+        167,
+        229
+      ],
+      "accounts": [
+        {
+          "name": "claim",
+          "docs": [
+            "Old flat claim accounts (89 bytes) get the ring layout in place:",
+            "their credit becomes one matured entry, nonce/bump preserved."
+          ],
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Pays the realloc rent top-up. Permissionless by design."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate_config",
+      "docs": [
+        "Grows the config PDA in place to the current layout: accepts the v1",
+        "(LEGACY_LEN) or v2 (LEN_V2) account. New tail bytes arrive zeroed;",
+        "from v1 that also zeroes operator roles, so prime re-adds them right",
+        "after (deploy runbook). cooldown_secs is always reset to the default."
+      ],
+      "discriminator": [
+        92,
+        131,
+        58,
+        105,
+        210,
+        154,
+        224,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "docs": [
+            "Cannot be a typed Account: the v1 layout is shorter than the new",
+            "PlatformConfig and fails deserialization pre-realloc. The handler",
+            "verifies seeds, signer, and size from raw bytes."
+          ],
+          "writable": true
+        },
+        {
+          "name": "prime",
+          "docs": [
+            "Prime admin — pays the realloc rent top-up; verified against",
+            "config.prime_admin in the handler."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate_escrow",
+      "docs": [
+        "Permissionless v1 -> v2 escrow migration: grows the account in place,",
+        "legacy prefix preserved, reward_points zeroed. Old-layout accounts",
+        "cannot be read by this binary, so open escrows must pass through here",
+        "before their next instruction — the backend keeper script runs this",
+        "for any open escrow; anyone may pay the rent top-up."
+      ],
+      "discriminator": [
+        65,
+        111,
+        186,
+        119,
+        58,
+        11,
+        81,
+        209
+      ],
+      "accounts": [
+        {
+          "name": "escrow",
+          "docs": [
+            "Cannot be a typed Account: the v1 layout is shorter than the new",
+            "Escrow and fails deserialization pre-realloc. Seeds are verified in",
+            "the handler from the stored order_hash."
+          ],
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "docs": [
+            "Pays the realloc rent top-up. Permissionless by design."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate_pool_state",
+      "docs": [
+        "Prime grows a v1 PoolState in place to the current layout and sets",
+        "its outstanding-credit baseline: the sum of all claim credit for this",
+        "mint at migration time (read off-chain, asserted by prime). Top-up",
+        "cap starts at zero (blocked) until prime sets it."
+      ],
+      "discriminator": [
+        59,
+        67,
+        7,
+        126,
+        165,
+        18,
+        64,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_state",
+          "docs": [
+            "Cannot be a typed Account: the v1 layout is shorter than the new",
+            "PoolState and fails deserialization pre-realloc.",
+            "the handler."
+          ],
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "prime",
+          "docs": [
+            "Pays the realloc rent top-up."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "outstanding_credit",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "pause",
+      "docs": [
+        "Guardian (or prime) halts all hot-role settlement instructions and",
+        "new escrow creation. Asymmetric by design: the pause key travels on",
+        "the server for fast incident response; only the cold prime can",
+        "unpause. In-flight escrows and the user's timeout backstop are not",
+        "affected — pause must never freeze user funds."
+      ],
+      "discriminator": [
+        211,
+        22,
+        221,
+        251,
+        74,
+        121,
+        193,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Guardian role or prime (checked in the handler)."
+          ],
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pool_payout",
+      "docs": [
+        "Payout role settles an LP's claim from the pool vault. Three facts",
+        "are enforced here, none by the caller:",
+        "- the destination is DERIVED from the claim account's registered",
+        "wallet — the payout key cannot name a destination at all",
+        "- the amount is the claim's full credit — no amount argument exists",
+        "- the LP's own signed intent is verified on-chain (ed25519",
+        "precompile + nonce + expiry), so even \"patience\" payouts of real",
+        "claims need a klick the LP themselves made",
+        "",
+        "Intent message (raw bytes, signed by the LP wallet):",
+        "b\"ZYP2\" | program_id[32] | wallet[32] | mint[32] | nonce u64 LE |",
+        "first_valid_slot u64 LE",
+        "",
+        "Pays min(matured credit, per-tx cap, window remaining), oldest",
+        "credit first; whatever the caps hold back stays matured for the next",
+        "payout, so a large claim can never become unpayable."
+      ],
+      "discriminator": [
+        96,
+        126,
+        156,
+        222,
+        124,
+        179,
+        148,
+        159
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_authority",
+          "docs": [
+            "Pool authority PDA — owns every pool vault and signs payouts only.",
+            "A PDA with no lamports is fine: it only ever signs."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "pool_authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "docs": [
+            "The claim being settled — owns the destination by definition."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.wallet",
+                "account": "ClaimState"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination_ata",
+          "docs": [
+            "LP destination, DERIVED from the claim — the caller names nobody."
+          ],
+          "writable": true
+        },
+        {
+          "name": "instructions",
+          "docs": [
+            "Instructions sysvar — the ed25519 intent ix must precede this call."
+          ],
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []
@@ -927,13 +1964,94 @@
         {
           "name": "authority",
           "docs": [
-            "Prime admin or operator."
+            "Settler role (release) or refunder role (refund), or prime — the",
+            "right role for the instruction is checked in the handler."
           ],
           "signer": true
         },
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "register_claim",
+      "docs": [
+        "Manager role registers an LP's claim account (LP application",
+        "approval). Pool-mode releases then credit it on settlement;",
+        "without registration, a pool release fails on the missing claim."
+      ],
+      "discriminator": [
+        3,
+        124,
+        156,
+        228,
+        6,
+        66,
+        235,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lp_wallet"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_wallet"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -947,7 +2065,11 @@
         "Releases to the LP, carving the platform fee out on-chain to the",
         "prime admin's token account. `fee_amount` is asserted by the platform",
         "authority's signature (users never sign release, so they cannot",
-        "under-report the fee)."
+        "under-report the fee).",
+        "",
+        "`lp_wallet` is the owner of `destination_ata`: the LP itself (direct",
+        "settlement) or the pool PDA (pool mode, where `claimer` names the LP",
+        "whose claim is credited)."
       ],
       "discriminator": [
         253,
@@ -1095,29 +2217,60 @@
         },
         {
           "name": "destination_ata",
-          "docs": [
-            "Destination ATA (LP wallet on release, user wallet on refund)."
-          ],
           "writable": true
         },
         {
           "name": "fee_vault_ata",
+          "writable": true
+        },
+        {
+          "name": "pool_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim_state",
           "docs": [
-            "Platform fee recipient ATA — on release, validated to be the prime",
-            "admin's token account for this mint. Passed (unused) on refunds."
+            "LP claim account — post-settlement credit target in pool mode.",
+            "must exist (LP registered) when pool mode credits a claim."
           ],
           "writable": true
         },
         {
           "name": "authority",
           "docs": [
-            "Prime admin or operator."
+            "Settler role or prime (role checked in the handler)."
           ],
           "signer": true
         },
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "lp_approval",
+          "docs": [
+            "Prime's approval of the beneficiary LP ([\"lp\", wallet])."
+          ]
+        },
+        {
+          "name": "pool_state",
+          "docs": [
+            "Pool accounting for escrow.mint — outstanding credit grows in pool",
+            "mode. Unused in direct mode."
+          ],
+          "writable": true
         }
       ],
       "args": [
@@ -1128,6 +2281,10 @@
         {
           "name": "fee_amount",
           "type": "u64"
+        },
+        {
+          "name": "claimer",
+          "type": "pubkey"
         }
       ]
     },
@@ -1175,6 +2332,532 @@
         {
           "name": "wallet",
           "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "revoke_lp",
+      "docs": [
+        "Prime revokes an LP's settlement approval (suspension, wallet",
+        "rotation). Takes effect at once: hot roles can no longer lock to,",
+        "release to, or credit this wallet. Existing claim credit stays the",
+        "LP's and remains withdrawable."
+      ],
+      "discriminator": [
+        252,
+        13,
+        13,
+        13,
+        82,
+        197,
+        251,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "approval",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  112
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "approval.wallet",
+                "account": "LpApproval"
+              }
+            ]
+          }
+        },
+        {
+          "name": "prime",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_cooldown_secs",
+      "docs": [
+        "Prime or the claim manager changes the claim maturity window.",
+        "pool_payout enforces it against each entry's own credited_at — no",
+        "server is consulted. The manager (a hot key) may only lengthen it, and",
+        "not while paused; shortening it matures credit early, so that is",
+        "prime's decision alone."
+      ],
+      "discriminator": [
+        164,
+        249,
+        110,
+        14,
+        125,
+        92,
+        234,
+        26
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "docs": [
+            "Prime or the claims manager (checked in the handler)."
+          ],
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "secs",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_max_fee_bps",
+      "docs": [
+        "Prime bounds how much of each escrow a release may cut as fee. Guards",
+        "against a compromised settler key starving LP payouts (fee = full",
+        "amount would be non-theft but destructive)."
+      ],
+      "discriminator": [
+        3,
+        68,
+        60,
+        223,
+        245,
+        17,
+        30,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "prime",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "set_pool_caps",
+      "docs": [
+        "Prime sets (or tightens) the payout caps for one mint."
+      ],
+      "discriminator": [
+        9,
+        162,
+        228,
+        193,
+        78,
+        226,
+        129,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "prime",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "per_tx_cap",
+          "type": "u64"
+        },
+        {
+          "name": "window_cap",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_top_up_cap",
+      "docs": [
+        "Prime caps how much non-settlement credit (top_up_claim) the manager",
+        "may post per PAYOUT_WINDOW_SECS for one mint. Zero blocks top-ups."
+      ],
+      "discriminator": [
+        117,
+        7,
+        83,
+        13,
+        33,
+        175,
+        91,
+        216
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "prime",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "window_cap",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "sweep_surplus",
+      "docs": [
+        "Prime-only profit extraction: moves the pooled spread/surplus to the",
+        "treasury ATA. The amount is signer-asserted (recon computes it off-",
+        "chain) but bounded on-chain: it may never dip into outstanding claim",
+        "credit, so even prime can't sweep LP money. The destination is pinned.",
+        "Runs during a pause on purpose — it is part of incident response."
+      ],
+      "discriminator": [
+        144,
+        67,
+        197,
+        177,
+        218,
+        200,
+        50,
+        24
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "pool_authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "treasury_ata",
+          "docs": [
+            "Treasury — pinned to the prime admin, like every sweep destination."
+          ],
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "prime",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "pool_state",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
         }
       ]
     },
@@ -1338,7 +3021,7 @@
         {
           "name": "authority",
           "docs": [
-            "Prime admin or operator."
+            "Keeper role or prime (role checked in the handler)."
           ],
           "signer": true
         },
@@ -1502,9 +3185,351 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "top_up_claim",
+      "docs": [
+        "Manager role posts non-settlement credits — epoch accruals,",
+        "referral claims — so every payout path shares one claim model.",
+        "",
+        "Top-ups move no tokens, so each one must be backed by pool surplus",
+        "(vault balance above outstanding credit) and fit the prime-set",
+        "per-window top-up cap. A stolen manager key can then only hand out",
+        "platform surplus, up to that cap, never LP money."
+      ],
+      "discriminator": [
+        10,
+        189,
+        30,
+        254,
+        167,
+        3,
+        177,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "lp_wallet"
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "lp_wallet"
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "pool_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_vault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "pool_authority"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "pool_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "unpause",
+      "docs": [
+        "Prime clears the pause."
+      ],
+      "discriminator": [
+        169,
+        144,
+        4,
+        38,
+        10,
+        141,
+        188,
+        255
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "prime",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "unregister_claim",
+      "docs": [
+        "Manager role removes a claim account (suspension/wallet rotation).",
+        "Fails while the account still owes the LP money."
+      ],
+      "discriminator": [
+        253,
+        137,
+        208,
+        66,
+        66,
+        53,
+        86,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claim.wallet",
+                "account": "ClaimState"
+              },
+              {
+                "kind": "account",
+                "path": "claim.mint",
+                "account": "ClaimState"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
+    {
+      "name": "ClaimState",
+      "discriminator": [
+        71,
+        73,
+        19,
+        83,
+        53,
+        228,
+        242,
+        53
+      ]
+    },
     {
       "name": "Escrow",
       "discriminator": [
@@ -1519,6 +3544,19 @@
       ]
     },
     {
+      "name": "LpApproval",
+      "discriminator": [
+        242,
+        147,
+        252,
+        5,
+        165,
+        150,
+        225,
+        213
+      ]
+    },
+    {
       "name": "PlatformConfig",
       "discriminator": [
         160,
@@ -1530,9 +3568,100 @@
         230,
         160
       ]
+    },
+    {
+      "name": "PoolState",
+      "discriminator": [
+        247,
+        237,
+        227,
+        245,
+        215,
+        195,
+        222,
+        70
+      ]
     }
   ],
   "events": [
+    {
+      "name": "ClaimCredited",
+      "discriminator": [
+        5,
+        157,
+        31,
+        220,
+        221,
+        107,
+        191,
+        9
+      ]
+    },
+    {
+      "name": "ClaimMigrated",
+      "discriminator": [
+        3,
+        28,
+        33,
+        221,
+        139,
+        82,
+        108,
+        170
+      ]
+    },
+    {
+      "name": "ClaimPaid",
+      "discriminator": [
+        212,
+        155,
+        88,
+        118,
+        128,
+        99,
+        132,
+        42
+      ]
+    },
+    {
+      "name": "ClaimRegistered",
+      "discriminator": [
+        29,
+        212,
+        54,
+        56,
+        186,
+        94,
+        66,
+        4
+      ]
+    },
+    {
+      "name": "ClaimSelfWithdrawn",
+      "discriminator": [
+        22,
+        141,
+        253,
+        107,
+        146,
+        137,
+        127,
+        192
+      ]
+    },
+    {
+      "name": "ClaimUnregistered",
+      "discriminator": [
+        85,
+        69,
+        188,
+        244,
+        201,
+        39,
+        236,
+        140
+      ]
+    },
     {
       "name": "ConfigInitialized",
       "discriminator": [
@@ -1544,6 +3673,45 @@
         167,
         178,
         91
+      ]
+    },
+    {
+      "name": "ConfigMigrated",
+      "discriminator": [
+        115,
+        69,
+        99,
+        100,
+        192,
+        77,
+        40,
+        50
+      ]
+    },
+    {
+      "name": "CooldownSet",
+      "discriminator": [
+        239,
+        136,
+        211,
+        126,
+        215,
+        163,
+        13,
+        42
+      ]
+    },
+    {
+      "name": "EscrowCancelled",
+      "discriminator": [
+        98,
+        241,
+        195,
+        122,
+        213,
+        0,
+        162,
+        161
       ]
     },
     {
@@ -1599,6 +3767,19 @@
       ]
     },
     {
+      "name": "EscrowMigrated",
+      "discriminator": [
+        169,
+        120,
+        241,
+        205,
+        106,
+        10,
+        45,
+        112
+      ]
+    },
+    {
       "name": "EscrowRefunded",
       "discriminator": [
         132,
@@ -1622,6 +3803,45 @@
         190,
         113,
         112
+      ]
+    },
+    {
+      "name": "FeeCapSet",
+      "discriminator": [
+        17,
+        38,
+        169,
+        33,
+        3,
+        248,
+        141,
+        80
+      ]
+    },
+    {
+      "name": "LpApproved",
+      "discriminator": [
+        227,
+        57,
+        142,
+        175,
+        220,
+        160,
+        209,
+        144
+      ]
+    },
+    {
+      "name": "LpRevoked",
+      "discriminator": [
+        79,
+        116,
+        185,
+        36,
+        56,
+        103,
+        68,
+        28
       ]
     },
     {
@@ -1651,6 +3871,45 @@
       ]
     },
     {
+      "name": "Paused",
+      "discriminator": [
+        172,
+        248,
+        5,
+        253,
+        49,
+        255,
+        255,
+        232
+      ]
+    },
+    {
+      "name": "PoolCapsSet",
+      "discriminator": [
+        175,
+        141,
+        27,
+        141,
+        13,
+        147,
+        112,
+        18
+      ]
+    },
+    {
+      "name": "PoolStateMigrated",
+      "discriminator": [
+        77,
+        128,
+        88,
+        126,
+        167,
+        141,
+        151,
+        4
+      ]
+    },
+    {
       "name": "PrimeProposed",
       "discriminator": [
         208,
@@ -1674,6 +3933,45 @@
         114,
         105,
         31
+      ]
+    },
+    {
+      "name": "SurplusSwept",
+      "discriminator": [
+        10,
+        228,
+        130,
+        83,
+        221,
+        240,
+        210,
+        32
+      ]
+    },
+    {
+      "name": "TopUpCapSet",
+      "discriminator": [
+        69,
+        221,
+        244,
+        141,
+        37,
+        139,
+        175,
+        115
+      ]
+    },
+    {
+      "name": "Unpaused",
+      "discriminator": [
+        156,
+        150,
+        47,
+        174,
+        120,
+        216,
+        93,
+        117
       ]
     },
     {
@@ -1730,9 +4028,281 @@
       "code": 6007,
       "name": "NotAnOperator",
       "msg": "wallet is not in the operator list"
+    },
+    {
+      "code": 6008,
+      "name": "PlatformPaused",
+      "msg": "platform is paused: hot-role settlement instructions are halted"
+    },
+    {
+      "code": 6009,
+      "name": "FeeCapExceeded",
+      "msg": "release fee exceeds the configured max_fee_bps cap"
+    },
+    {
+      "code": 6010,
+      "name": "PayoutCapExceeded",
+      "msg": "payout exceeds the per-tx or rolling-window cap for this mint"
+    },
+    {
+      "code": 6011,
+      "name": "CapsNotSet",
+      "msg": "pool caps are not set for this mint (prime must call set_pool_caps)"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidRole",
+      "msg": "an operator must carry at least one role"
+    },
+    {
+      "code": 6013,
+      "name": "NotRegistered",
+      "msg": "claim account is not registered for this wallet"
+    },
+    {
+      "code": 6014,
+      "name": "CreditNonZero",
+      "msg": "claim account still owes the LP credit — pay out before unregistering"
+    },
+    {
+      "code": 6015,
+      "name": "IntentInvalid",
+      "msg": "payout intent is missing or does not bind this claim and nonce"
+    },
+    {
+      "code": 6016,
+      "name": "IntentExpired",
+      "msg": "payout intent is outside its validity window"
+    },
+    {
+      "code": 6017,
+      "name": "LpNotApproved",
+      "msg": "LP wallet is not approved on-chain by prime for settlement"
+    },
+    {
+      "code": 6018,
+      "name": "CooldownDecrease",
+      "msg": "only prime can shorten the claim cooldown"
+    },
+    {
+      "code": 6019,
+      "name": "SurplusExceeded",
+      "msg": "sweep would take outstanding claim credit (only surplus can be swept)"
+    },
+    {
+      "code": 6020,
+      "name": "TopUpCapNotSet",
+      "msg": "top-up cap is not set for this mint (prime must call set_top_up_cap)"
+    },
+    {
+      "code": 6021,
+      "name": "TopUpCapExceeded",
+      "msg": "top-up exceeds the per-window top-up cap for this mint"
+    },
+    {
+      "code": 6022,
+      "name": "Underbacked",
+      "msg": "top-up is not backed: pool vault would hold less than outstanding credit"
+    },
+    {
+      "code": 6023,
+      "name": "OrderHashMismatch",
+      "msg": "order hash does not bind this depositor and order reference"
     }
   ],
   "types": [
+    {
+      "name": "ClaimCredited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "source",
+            "docs": [
+              "CREDIT_SETTLEMENT (pool-mode release) or CREDIT_TOP_UP."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimEntry",
+      "docs": [
+        "One credit write with its own timestamp. Maturity is computed per",
+        "entry: an entry pays only after config.cooldown_secs has passed since",
+        "its credit landed. Time-splitting claims is what lets the chain — not",
+        "any server — decide the withdrawable portion."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "credited_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimMigrated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimSelfWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimState",
+      "docs": [
+        "One claim account per (LP wallet, mint) — the contract's own knowledge",
+        "of who may be paid what. Payout destinations are derived from .wallet;",
+        "payout amounts are derived from .entries (never from any argument), so",
+        "outflow is structurally always ≤ total credits, and never cooling-fresh."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "ClaimEntry"
+                  }
+                },
+                16
+              ]
+            }
+          },
+          {
+            "name": "write_idx",
+            "type": "u8"
+          },
+          {
+            "name": "payout_nonce",
+            "docs": [
+              "Replay barrier: every signed payout intent carries this nonce; the",
+              "payout bumps it, so a captured intent can never pay twice."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimUnregistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
     {
       "name": "ConfigInitialized",
       "type": {
@@ -1740,6 +4310,29 @@
         "fields": [
           {
             "name": "prime_admin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigMigrated",
+      "type": {
+        "kind": "struct",
+        "fields": []
+      }
+    },
+    {
+      "name": "CooldownSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "secs",
+            "type": "i64"
+          },
+          {
+            "name": "by",
             "type": "pubkey"
           }
         ]
@@ -1797,6 +4390,33 @@
               "When the platform locked the escrow for the fiat leg (0 = never)."
             ],
             "type": "i64"
+          },
+          {
+            "name": "reward_points",
+            "docs": [
+              "Reward-points share of the payment (metadata; 0 for legacy/migrated",
+              "escrows and plain-USDC orders). The vault is always `amount` USDC."
+            ],
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
+          },
+          {
+            "name": "residual_swept",
+            "docs": [
+              "Stray vault donations swept to the user on cancel (0 normally)."
+            ],
+            "type": "u64"
           }
         ]
       }
@@ -1849,6 +4469,10 @@
           {
             "name": "amount",
             "type": "u64"
+          },
+          {
+            "name": "reward_points",
+            "type": "u64"
           }
         ]
       }
@@ -1865,6 +4489,18 @@
           {
             "name": "locked_at",
             "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EscrowMigrated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "escrow",
+            "type": "pubkey"
           }
         ]
       }
@@ -1933,6 +4569,66 @@
       }
     },
     {
+      "name": "FeeCapSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "max_fee_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LpApproval",
+      "docs": [
+        "Prime's on-chain approval of an LP wallet for settlement (PDA, seeds",
+        "[\"lp\", wallet]). Hot roles may only commit, pay or credit approved LPs."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "approved_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LpApproved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "LpRevoked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "OperatorAdded",
       "type": {
         "kind": "struct",
@@ -1940,6 +4636,10 @@
           {
             "name": "wallet",
             "type": "pubkey"
+          },
+          {
+            "name": "roles",
+            "type": "u8"
           }
         ]
       }
@@ -1957,10 +4657,24 @@
       }
     },
     {
+      "name": "Paused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "by",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
       "name": "PlatformConfig",
       "docs": [
         "On-chain authority registry (PDA, seeds [\"config\"]). Prime admin manages",
-        "the operator set; prime + operators may run settlement instructions."
+        "the operator set; each operator slot carries role bits and settlement",
+        "instructions require the matching role. Prime (a cold multisig) is the",
+        "implicit holder of every role: the emergency fallback, never on a server."
       ],
       "type": {
         "kind": "struct",
@@ -1989,6 +4703,137 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "operator_roles",
+            "type": {
+              "array": [
+                "u8",
+                8
+              ]
+            }
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "max_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "cooldown_secs",
+            "docs": [
+              "Seconds a claim entry must age before it is withdrawable. Prime-set;",
+              "enforced by pool_payout itself, not by anything server-side."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoolCapsSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "per_tx_cap",
+            "type": "u64"
+          },
+          {
+            "name": "window_cap",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoolState",
+      "docs": [
+        "Per-mint pool accounting (PDA, seeds [\"pool_state\", mint]). Pool custody",
+        "lives in ATAs owned by the [\"pool\"] PDA; this account bounds what the",
+        "payout role may move. Zero caps fail closed: payouts block until prime",
+        "sets them."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "per_tx_cap",
+            "type": "u64"
+          },
+          {
+            "name": "window_cap",
+            "docs": [
+              "Rolling payout budget: at most window_cap can be outstanding in",
+              "window_used, which drains at window_cap per PAYOUT_WINDOW_SECS."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_payout_at",
+            "docs": [
+              "When window_used was last updated (last payout)."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "window_used",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "outstanding_credit",
+            "docs": [
+              "Sum of all unpaid claim credit for this mint: grows on pool-mode",
+              "release credits and top-ups, shrinks on payouts. sweep_surplus may",
+              "only take vault balance above it; top-ups must stay below it."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "top_up_window_cap",
+            "docs": [
+              "Rolling budget for top_up_claim totals, same mechanics as payouts",
+              "(prime-set; zero blocks top-ups)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_top_up_at",
+            "type": "i64"
+          },
+          {
+            "name": "top_up_used",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoolStateMigrated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "outstanding_credit",
+            "type": "u64"
           }
         ]
       }
@@ -2012,6 +4857,50 @@
         "fields": [
           {
             "name": "prime_admin",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SurplusSwept",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TopUpCapSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "window_cap",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Unpaused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "by",
             "type": "pubkey"
           }
         ]

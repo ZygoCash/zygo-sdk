@@ -43,9 +43,11 @@ if (quote.isErr()) throw quote.error;
 // 3. Create the order (idempotent)
 const order = await zygo.orders.create({ quoteId: quote.value.quote_id });
 
-// 4. Get on-chain deposit instructions for the payer's wallet
+// 4. Get on-chain deposit instructions for the account's primary Solana wallet
 const deposit = await zygo.payments.depositInstructions(order.value.order_id);
-// → deposit.value: { escrow_id, program_id, escrow_pda, order_hash, mint, amount_base }
+// → deposit.value: { escrow_id, program_id, escrow_pda, order_hash, order_ref,
+//                    mint, amount_base, reward_points, gross_base, points_value_base }
+// Pay part of the order with Zygo points: depositInstructions(orderId, { points: 50 })
 
 // 5. Wait for settlement (or use a webhook instead)
 const done = await zygo.orders.waitFor(order.value.order_id, "completed");
@@ -88,7 +90,15 @@ const sig = await zygo.payments.deposit.execute(prepared.value, signer);
 ```
 
 The deposit is the escrow program path only: `initialize_escrow` +
-`deposit` in one transaction.
+`deposit` in one transaction, built for the v2 escrow program (mainnet
+`8mTojgUC3bLUoZm7MhxGsZm34Wr1a1tpRtGDwg6euaUW`; the program id for each
+order comes from the deposit instructions).
+
+The escrow is bound to the depositor: `order_hash` is
+`sha256("zygo-escrow-v2" ‖ wallet ‖ order_ref)` and the program checks it.
+The signer must be the wallet the instructions were prepared for — the API
+key owner's primary Solana wallet. `prepare` checks this locally and fails
+with `DEPOSITOR_MISMATCH` instead of sending a transaction that would fail.
 
 All methods return `ResultAsync<T, ZygoError>` (neverthrow) — no thrown
 exceptions from API failures. Retries on 429/5xx with backoff are built in
@@ -119,6 +129,9 @@ error code. Common ones:
 | `RATE_LIMITED` | 429 | yes | `Retry-After` honored |
 | `RATE_UNAVAILABLE` | 503 | yes | no live FX source right now |
 | `PRICING_INVALID` | 503 | no | operator pricing misconfiguration |
+| `POINTS_UNAVAILABLE` / `POINTS_OVER_LIMIT` / `POINTS_INSUFFICIENT` | 409 | no | points can't cover what was asked — retry without `points` |
+| `DEPOSITOR_MISMATCH` | — | no | `deposit.prepare` signer isn't the wallet the order was prepared for |
+| `INVALID_DEPOSIT_INSTRUCTIONS` | — | no | deposit instructions incomplete or inconsistent (e.g. no `order_ref`) |
 
 ## Environments
 

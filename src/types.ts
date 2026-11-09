@@ -114,9 +114,36 @@ export interface DepositInstructions {
   program_id: string;
   /** Escrow PDA derived from the program and order hash. */
   escrow_pda: string;
-  /** hex, 32 bytes — SHA-256 of the backend order public id. */
+  /**
+   * hex, 32 bytes — the escrow PDA seed:
+   * sha256("zygo-escrow-v2" ‖ depositor wallet ‖ order_ref). It binds the
+   * escrow to the depositor, so only that wallet can open it.
+   */
   order_hash: string;
+  /**
+   * hex, 32 bytes — SHA-256 of the backend order public id. Passed to
+   * `initialize_escrow`, which recomputes order_hash from it on-chain.
+   */
+  order_ref: string;
+  /** What the wallet deposits: the full order, or with points only the user's share. */
   amount_base: number;
+  /**
+   * Whole Zygo points applied to this order (0 = plain USDC). Recorded on
+   * the escrow as `reward_points`; the backend checks it on the funded escrow.
+   */
+  reward_points: number;
+  /** Full order value in token base units. */
+  gross_base: number;
+  /** Part of gross_base paid by points (0 = plain USDC). */
+  points_value_base: number;
+}
+
+export interface DepositInstructionsOptions {
+  /**
+   * Pay this many whole Zygo points of the order. The server prices and
+   * caps them; the escrow then holds only the rest. Omit for plain USDC.
+   */
+  points?: number;
 }
 
 /** An enabled payment rail in one corridor (country + fiat currency). */
